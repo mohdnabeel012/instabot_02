@@ -108,14 +108,19 @@ def scrape_whatsapp_links():
                         print(f"🎯 Reached daily limit of {MAX_SCRAPED_PER_DAY}. Exiting.")
                         return
 
-                    # ✅ Sleep after a successful scrape
                     sleep_random(300, 400)
 
+            except json.decoder.JSONDecodeError:
+                print(f"⚠️ JSON decode error on @{username} — skipping.")
+                visited_users.add(user_id)
+                save_json(MESSAGED_USERS_FILE, list(visited_users))
+                continue
             except Exception as e:
                 print(f"❌ Error with @{username}: {e}")
+                visited_users.add(user_id)
+                save_json(MESSAGED_USERS_FILE, list(visited_users))
                 continue
 
-        # Longer sleep between hashtags
         sleep_random(120, 180)
 
     print("✅ Scraping session complete.")
