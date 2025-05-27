@@ -1,39 +1,26 @@
-from instagrapi import Client
 import json
 import os
 import re
-import random
 import time
-from datetime import datetime
+import random
+from selenium import webdriver
+import undetected_chromedriver as uc
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 
-# ========== CONFIGURATION ==========
-CONFIG_PATH = 'config.json'
-MESSAGED_USERS_FILE = 'messaged_users.json'
-OUTPUT_FILE = 'whatsapp-links.json'
+# ========= CONFIGURATION =========
 HASHTAGS = ["dropshippingindia", "indiandropshipping", "shopifyindia", "ecomindia"]
-MAX_SCRAPED_PER_DAY = 10
-TIME_WINDOW_START = 12  # 12 PM
-TIME_WINDOW_END = 21    # 9 PM
+WHATSAPP_LINKS_PATH = "whatsapp_links.json"
+VISITED_USERS_PATH = "visited_users.json"
+SCROLL_COUNT = 5
 
-# ========== UTILITIES ==========
+# ========= UTILITIES =========
 def load_json(path, default):
-    if not os.path.exists(path):
-        return default
-    with open(path, 'r') as f:
-        return json.load(f)
+    return json.load(open(path)) if os.path.exists(path) else default
 
 def save_json(path, data):
-    with open(path, 'w') as f:
+    with open(path, "w") as f:
         json.dump(data, f, indent=2)
-
-def is_within_time_window():
-    hour = datetime.now().hour
-    return TIME_WINDOW_START <= hour < TIME_WINDOW_END
-
-def sleep_random(min_sec, max_sec):
-    duration = random.randint(min_sec, max_sec)
-    print(f"⏳ Sleeping for {duration} seconds...")
-    time.sleep(duration)
 
 def extract_whatsapp_link(text):
     pattern = r"(https?://)?(www\.)?(wa\.me|chat\.whatsapp\.com|whatsapp\.com/channel|whatsapp\.com/send)/[^\s'\"]+"
@@ -43,87 +30,73 @@ def extract_whatsapp_link(text):
         return "https://" + url if not url.startswith("http") else url
     return None
 
-# ========== LOAD CREDENTIALS ==========
-config = load_json(CONFIG_PATH, {})
-USERNAME = config.get("username")
-PASSWORD = config.get("password")
+def sleep_random(min_sec, max_sec):
+    time.sleep(random.randint(min_sec, max_sec))
 
-if not USERNAME or not PASSWORD:
-    raise ValueError("❌ Username or password not set in config.json")
+# ========= MAIN =========
+def run():
+    driver = uc.Chrome()
+    driver.get("https://www.instagram.com/")
 
-# ========== INSTAGRAM LOGIN ==========
-cl = Client()
-cl.login(USERNAME, PASSWORD)
+    input("🔐 Please log in to Instagram manually, then press Enter here...")
 
-# ========== LOAD TRACKING DATA ==========
-visited_users = set(load_json(MESSAGED_USERS_FILE, []))
-scraped_data = load_json(OUTPUT_FILE, [])
-
-# ========== SCRAPE FUNCTION ==========
-def scrape_whatsapp_links():
-    print("🚀 Starting scraping session...")
-    if not is_within_time_window():
-        print("⏰ Outside allowed time (12 PM–9 PM). Exiting.")
-        return
-
-    scraped_count = 0
-    random.shuffle(HASHTAGS)
+    visited_users = set(load_json(VISITED_USERS_PATH, []))
+    results = load_json(WHATSAPP_LINKS_PATH, [])
 
     for tag in HASHTAGS:
-        try:
-            medias = cl.hashtag_medias_recent(tag, amount=50)
-        except Exception as e:
-            print(f"❌ Error fetching hashtag #{tag}: {e}")
-            continue
+        print(f"🔍 Searching #{tag}...")
+        driver.get(f"https://www.instagram.com/explore/tags/{tag}/")
+        time.sleep(5)
 
-        print(f"🔍 Scanning #{tag} with {len(medias)} posts...")
+        links = set()
+        for _ in range(SCROLL_COUNT):
+            links.update([a.get_attribute('href') for a in driver.find_elements(By.TAG_NAME, "a") if "/p/" in a.get_attribute('href')])
+            driver.find_element(By.TAG_NAME, "body").send_keys(Keys.END)
+            time.sleep(2)
 
-        for media in medias:
-            user = media.user
-            user_id = str(user.pk)
-            username = user.username
+        print(f"📸 Found {len(links)} post links.")
 
-            if user_id in visited_users:
-                continue
-
+        for link in list(links)[:50]:
+            driver.get(link)
+            time.sleep(3)
             try:
-                profile = cl.user_info_by_username(username)
-                bio = profile.biography or ""
-                url = profile.external_url or ""
+                user_elem = driver.find_element(By.XPATH, '//a[contains(@href, "/")]')
+                profile_url = user_elem.get_attribute("href")
+                username = profile_url.strip("/").split("/")[-1]
 
-                link = extract_whatsapp_link(bio) or extract_whatsapp_link(url)
-                visited_users.add(user_id)
-                save_json(MESSAGED_USERS_FILE, list(visited_users))
+                if username in visited_users:
+                    continue
+                visited_users.add(username)
 
-                if link:
-                    print(f"✅ Found WhatsApp link for @{username}: {link}")
-                    scraped_data.append({
-                        "username": username,
-                        "whatsapp_link": link
-                    })
-                    save_json(OUTPUT_FILE, scraped_data)
+                driver.get(profile_url)
+                time.sleep(3)
 
-                    scraped_count += 1
-                    if scraped_count >= MAX_SCRAPED_PER_DAY:
-                        print(f"🎯 Reached daily limit of {MAX_SCRAPED_PER_DAY}. Exiting.")
-                        return
+                bio = ""
+                try:
+                    bio_elem = driver.find_element(By.XPATH, "//div[contains(@class, '_aa_c') or contains(@class, '_aa_c _aa_d')]")
+                    bio = bio_elem.text
+                except:
+                    pass
 
-                    sleep_random(300, 400)
+                try:
+                    url_elem = driver.find_element(By.XPATH, "//a[contains(@href, 'http')]")
+                    bio += "\n" + url_elem.get_attribute("href")
+                except:
+                    pass
 
-            except json.decoder.JSONDecodeError:
-                print(f"⚠️ JSON decode error on @{username} — skipping.")
-                visited_users.add(user_id)
-                save_json(MESSAGED_USERS_FILE, list(visited_users))
-                continue
+                link = extract_whatsapp_link(bio)
+                if link and "chat.whatsapp.com" in link:
+                    print(f"✅ @{username} => {link}")
+                    results.append({"username": username, "whatsapp_link": link})
+                    save_json(WHATSAPP_LINKS_PATH, results)
+                    sleep_random(5, 10)
+
             except Exception as e:
-                print(f"❌ Error with @{username}: {e}")
-                visited_users.add(user_id)
-                save_json(MESSAGED_USERS_FILE, list(visited_users))
-                continue
+                print(f"❌ Error: {e}")
+            save_json(VISITED_USERS_PATH, list(visited_users))
+            sleep_random(2, 4)
 
-        sleep_random(120, 180)
+    print("✅ Done scraping.")
+    driver.quit()
 
-    print("✅ Scraping session complete.")
-
-# ========== RUN ==========
-scrape_whatsapp_links()
+run()
