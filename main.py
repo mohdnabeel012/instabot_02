@@ -48,7 +48,7 @@ def run():
     for tag in HASHTAGS:
         print(f"🔍 Searching #{tag}...")
         driver.get(f"https://www.instagram.com/explore/tags/{tag}/")
-        sleep_random(5, 10)  # SLEEP_TAG_LOAD
+        sleep_random(2, 5)  # SLEEP_TAG_LOAD
 
         links = set()
         for _ in range(SCROLL_COUNT):
@@ -58,13 +58,13 @@ def run():
                 if a.get_attribute('href') and "/p/" in a.get_attribute('href')
             ])
             driver.find_element(By.TAG_NAME, "body").send_keys(Keys.END)
-            sleep_random(7, 12)  # SLEEP_SCROLL
+            sleep_random(4,9)  # SLEEP_SCROLL
 
         print(f"📸 Found {len(links)} post links.")
 
         for link in list(links)[:50]:
             driver.get(link)
-            sleep_random(3, 6)  # SLEEP_POST_LOAD
+            sleep_random(2, 5)  # SLEEP_POST_LOAD
             try:
                 user_elem = driver.find_element(By.XPATH, '//a[contains(@href, "/")]')
                 profile_url = user_elem.get_attribute("href")
@@ -75,7 +75,7 @@ def run():
                 visited_users.add(username)
 
                 driver.get(profile_url)
-                sleep_random(4, 7)  # SLEEP_PROFILE_LOAD
+                sleep_random(2,5)  # SLEEP_PROFILE_LOAD
 
                 bio = ""
                 try:
@@ -95,13 +95,13 @@ def run():
                     print(f"✅ @{username} => {link}")
                     results.append({"username": username, "whatsapp_link": link})
                     save_json(WHATSAPP_LINKS_PATH, results)
-                    sleep_random(3, 12)  # SLEEP_WHATSAPP_FOUND
+                    sleep_random(3, 7)  # SLEEP_WHATSAPP_FOUND
 
             except Exception as e:
                 print(f"❌ Error: {e}")
 
             save_json(VISITED_USERS_PATH, list(visited_users))
-            sleep_random(3, 7)  # SLEEP_EACH_USER
+            sleep_random(3, 5)  # SLEEP_EACH_USER
 
     print("✅ Done scraping.")
     driver.quit()
