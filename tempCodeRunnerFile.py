@@ -12,7 +12,7 @@ from selenium.webdriver.common.keys import Keys
 HASHTAGS = ["dropshippingindia", "indiandropshipping", "shopifyindia", "ecomindia"]
 WHATSAPP_LINKS_PATH = "whatsapp_links.json"
 VISITED_USERS_PATH = "visited_users.json"
-SCROLL_COUNT = 100
+SCROLL_COUNT = 5
 
 # ========= UTILITIES =========
 def load_json(path, default):
@@ -31,9 +31,7 @@ def extract_whatsapp_link(text):
     return None
 
 def sleep_random(min_sec, max_sec):
-    delay = random.randint(min_sec, max_sec)
-    print(f"⏳ Sleeping for {delay} seconds...")
-    time.sleep(delay)
+    time.sleep(random.randint(min_sec, max_sec))
 
 # ========= MAIN =========
 def run():
@@ -48,23 +46,19 @@ def run():
     for tag in HASHTAGS:
         print(f"🔍 Searching #{tag}...")
         driver.get(f"https://www.instagram.com/explore/tags/{tag}/")
-        sleep_random(5, 10)  # SLEEP_TAG_LOAD
+        time.sleep(5)
 
         links = set()
         for _ in range(SCROLL_COUNT):
-            links.update([
-                a.get_attribute('href')
-                for a in driver.find_elements(By.TAG_NAME, "a")
-                if a.get_attribute('href') and "/p/" in a.get_attribute('href')
-            ])
+            links.update([a.get_attribute('href') for a in driver.find_elements(By.TAG_NAME, "a") if "/p/" in a.get_attribute('href')])
             driver.find_element(By.TAG_NAME, "body").send_keys(Keys.END)
-            sleep_random(7, 12)  # SLEEP_SCROLL
+            time.sleep(2)
 
         print(f"📸 Found {len(links)} post links.")
 
         for link in list(links)[:50]:
             driver.get(link)
-            sleep_random(3, 6)  # SLEEP_POST_LOAD
+            time.sleep(3)
             try:
                 user_elem = driver.find_element(By.XPATH, '//a[contains(@href, "/")]')
                 profile_url = user_elem.get_attribute("href")
@@ -75,7 +69,7 @@ def run():
                 visited_users.add(username)
 
                 driver.get(profile_url)
-                sleep_random(4, 7)  # SLEEP_PROFILE_LOAD
+                time.sleep(3)
 
                 bio = ""
                 try:
@@ -95,15 +89,15 @@ def run():
                     print(f"✅ @{username} => {link}")
                     results.append({"username": username, "whatsapp_link": link})
                     save_json(WHATSAPP_LINKS_PATH, results)
-                    sleep_random(3, 12)  # SLEEP_WHATSAPP_FOUND
+                    sleep_random(5, 10)
 
             except Exception as e:
                 print(f"❌ Error: {e}")
-
             save_json(VISITED_USERS_PATH, list(visited_users))
-            sleep_random(3, 7)  # SLEEP_EACH_USER
+            sleep_random(2, 4)
 
     print("✅ Done scraping.")
     driver.quit()
 
 run()
+
