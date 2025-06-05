@@ -3,6 +3,7 @@ import os
 import re
 import time
 import random
+from datetime import datetime
 from selenium import webdriver
 import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
@@ -13,6 +14,9 @@ HASHTAGS = ["dropshippingindia", "indiandropshipping", "shopifyindia", "ecomindi
 WHATSAPP_LINKS_PATH = "whatsapp_links.json"
 VISITED_USERS_PATH = "visited_users.json"
 SCROLL_COUNT = 100
+
+TIME_WINDOW_START = 12  # 12 PM
+TIME_WINDOW_END = 23    # 11 PM
 
 # ========= UTILITIES =========
 def load_json(path, default):
@@ -35,8 +39,17 @@ def sleep_random(min_sec, max_sec):
     print(f"⏳ Sleeping for {delay} seconds...")
     time.sleep(delay)
 
+def is_within_time_window():
+    now = datetime.now()
+    return TIME_WINDOW_START <= now.hour < TIME_WINDOW_END
+
 # ========= MAIN =========
 def run():
+    # Day off chance (10% to 15%)
+    if random.random() < random.uniform(0.10, 0.15):
+        print("🛌 Taking a day off (random skip to avoid spam)...")
+        return
+
     driver = uc.Chrome()
     driver.get("https://www.instagram.com/")
     input("🔐 Please log in to Instagram manually, then press Enter here...")
@@ -48,8 +61,14 @@ def run():
         print(f"🔍 Searching #{tag}...")
         driver.get(f"https://www.instagram.com/explore/tags/{tag}/")
         sleep_random(2, 5)
+
         links = set()
         for _ in range(SCROLL_COUNT):
+            if not is_within_time_window():
+                print("⏰ Outside allowed time. Sleeping 10 minutes...")
+                time.sleep(600)
+                continue
+
             anchors = driver.find_elements(By.TAG_NAME, "a")
             for a in anchors:
                 try:
@@ -63,7 +82,15 @@ def run():
 
         print(f"📸 Found {len(links)} post links.")
 
+        batch_count = 0
+        pause_after = random.randint(8, 12)
+
         for link in list(links)[:50]:
+            if not is_within_time_window():
+                print("⏰ Outside allowed time. Sleeping 10 minutes...")
+                time.sleep(600)
+                continue
+
             driver.get(link)
             sleep_random(2, 5)
             try:
@@ -102,7 +129,16 @@ def run():
                 print(f"❌ Error: {e}")
 
             save_json(VISITED_USERS_PATH, list(visited_users))
-            sleep_random(3, 5)
+            batch_count += 1
+
+            if batch_count >= pause_after:
+                sleep_time = random.randint(720, 900)
+                print(f"😴 Pausing after {batch_count} users for {sleep_time // 60} min...")
+                time.sleep(sleep_time)
+                batch_count = 0
+                pause_after = random.randint(8, 12)
+            else:
+                sleep_random(110, 150)
 
     print("✅ Done scraping.")
     driver.quit()
