@@ -48,7 +48,6 @@ def run():
         print(f"🔍 Searching #{tag}...")
         driver.get(f"https://www.instagram.com/explore/tags/{tag}/")
         sleep_random(2, 5)
-
         links = set()
         for _ in range(SCROLL_COUNT):
             anchors = driver.find_elements(By.TAG_NAME, "a")
