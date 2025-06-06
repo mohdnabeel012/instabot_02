@@ -14,7 +14,6 @@ HASHTAGS = ["dropshippingindia", "indiandropshipping", "shopifyindia", "ecomindi
 WHATSAPP_LINKS_PATH = "whatsapp_links.json"
 VISITED_USERS_PATH = "visited_users.json"
 SCROLL_COUNT = 100
-
 TIME_WINDOW_START = 12  # 12 PM
 TIME_WINDOW_END = 23    # 11 PM
 
@@ -34,18 +33,13 @@ def extract_whatsapp_link(text):
         return "https://" + url if not url.startswith("http") else url
     return None
 
-def sleep_random(min_sec, max_sec):
-    delay = random.randint(min_sec, max_sec)
-    print(f"⏳ Sleeping for {delay} seconds...")
-    time.sleep(delay)
-
 def is_within_time_window():
     now = datetime.now()
     return TIME_WINDOW_START <= now.hour < TIME_WINDOW_END
 
 # ========= MAIN =========
 def run():
-    # Day off chance (10% to 15%)
+    # Random day skip (10–15% chance)
     if random.random() < random.uniform(0.10, 0.15):
         print("🛌 Taking a day off (random skip to avoid spam)...")
         return
@@ -60,7 +54,7 @@ def run():
     for tag in HASHTAGS:
         print(f"🔍 Searching #{tag}...")
         driver.get(f"https://www.instagram.com/explore/tags/{tag}/")
-        sleep_random(2, 5)
+        time.sleep(3)  # wait once for page load
 
         links = set()
         for _ in range(SCROLL_COUNT):
@@ -77,8 +71,9 @@ def run():
                         links.add(href)
                 except:
                     continue
+
             driver.find_element(By.TAG_NAME, "body").send_keys(Keys.END)
-            sleep_random(4, 9)
+            time.sleep(0.5)  # minimal scroll delay
 
         print(f"📸 Found {len(links)} post links.")
 
@@ -92,7 +87,8 @@ def run():
                 continue
 
             driver.get(link)
-            sleep_random(2, 5)
+            time.sleep(2)  # wait for post to load
+
             try:
                 user_elem = driver.find_element(By.XPATH, '//a[contains(@href, "/")]')
                 profile_url = user_elem.get_attribute("href")
@@ -103,7 +99,7 @@ def run():
                 visited_users.add(username)
 
                 driver.get(profile_url)
-                sleep_random(2, 5)
+                time.sleep(2)
 
                 bio = ""
                 try:
@@ -123,7 +119,7 @@ def run():
                     print(f"✅ @{username} => {link}")
                     results.append({"username": username, "whatsapp_link": link})
                     save_json(WHATSAPP_LINKS_PATH, results)
-                    sleep_random(3, 7)
+                    time.sleep(random.randint(2, 4))
 
             except Exception as e:
                 print(f"❌ Error: {e}")
@@ -132,13 +128,13 @@ def run():
             batch_count += 1
 
             if batch_count >= pause_after:
-                sleep_time = random.randint(720, 900)
+                sleep_time = random.randint(360, 480)
                 print(f"😴 Pausing after {batch_count} users for {sleep_time // 60} min...")
                 time.sleep(sleep_time)
                 batch_count = 0
                 pause_after = random.randint(8, 12)
             else:
-                sleep_random(110, 150)
+                time.sleep(random.randint(10, 15))  # short per-profile delay
 
     print("✅ Done scraping.")
     driver.quit()
